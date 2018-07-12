@@ -89,8 +89,8 @@ class ArduinoCommunicator():
     def isAvailable(self):
         return self.ser.is_open
 
-    def writeData(self, data):
-        self.ser.write(data + "\n")
+    def write(self, data):
+        self.ser.write(data.encode())
 
     def kill(self):
         self.ser.close()
@@ -108,7 +108,7 @@ class GUI():
         self.master.geometry('800x600')
         self.master.attributes("-zoomed", False)
         self.createGraph()
-        self.plotGraph()
+        self.plotGraph(1)
         self.master.bind("<Escape>", self.end_fullscreen)
 
     def end_fullscreen(self, event=None):
@@ -149,7 +149,7 @@ class GUI():
         # self.toolbar.grid(column = 0, row = 2, columnspan=2)
         self.toolbar.update()
 
-    def plotGraph(self):
+    def plotGraph(self, val):
         xData = []
         yData = []
         zData = []
@@ -157,9 +157,9 @@ class GUI():
             xData.append(self.slider.val)
             yData.append(self.slider1.val)
             zData.append(self.slider2.val)
-        comms.writeData(self.slider.val)
-        comms.writeData(self.slider1.val)
-        comms.writeData(self.slider2.val)
+        comms.write("X:" + str(self.slider.val))
+        comms.write("Y:" + str(self.slider1.val))
+        comms.write("Z:" + str(self.slider2.val))
         self.line, = self.ax0.plot(self.ts,xData)
         self.line.set_color("blue")
         self.line1, = self.ax1.plot(self.ts,yData)
@@ -167,11 +167,11 @@ class GUI():
         self.line2, = self.ax2.plot(self.ts,zData)
         self.line2.set_color("blue")
         self.addOrientationData()
-        self.l = self.ax0.plot(self.ts, self.ox)
+        self.l, = self.ax0.plot(self.ts, self.ox)
         self.l.set_color("black")
-        self.l1 = self.ax1.plot(self.ts, self.oy)
+        self.l1, = self.ax1.plot(self.ts, self.oy)
         self.l1.set_color("black")
-        self.l2 = self.ax2.plot(self.ts, self.oy)
+        self.l2, = self.ax2.plot(self.ts, self.oy)
         self.l2.set_color("black")
         self.canvas.draw()
 
@@ -195,7 +195,7 @@ def runArduino():
             sampleData = parser.parseLine(f)
             if(sampleData != None):
                 orientationData.append(sampleData)
-                graph.plotGraph()
+                graph.plotGraph(1)
             f = comms.readData()
         else:
             f = comms.readData()
