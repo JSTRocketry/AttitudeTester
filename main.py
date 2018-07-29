@@ -10,9 +10,10 @@ import matplotlib.animation as animation
 from matplotlib import style
 style.use("ggplot")
 from matplotlib.widgets import Slider
-
+from matplotlib.widgets import TextBox
 
 orientationData = []
+altitudeData = []
 root = Tk()
 
 class SyntaxParser():
@@ -84,18 +85,18 @@ class ArduinoCommunicator():
         self.ser = serial.Serial(port, 115200)
 
     def readData(self):
-        return str(self.ser.readline())
+        return self.ser.readline().decode('utf-8')
 
     def isAvailable(self):
-        return self.ser.is_open
+        return self.ser.isOpen()
 
-    def write(self, data):
-        self.ser.write(data.encode())
+    def writeData(self, data):
+        return self.ser.write(data.encode('utf-8'))
 
     def kill(self):
         self.ser.close()
 
-class GUI():
+class OrientationGUI():
     ox = []
     oy = []
     oz = []
@@ -157,9 +158,9 @@ class GUI():
             xData.append(self.slider.val)
             yData.append(self.slider1.val)
             zData.append(self.slider2.val)
-        comms.write("X:" + str(self.slider.val))
-        comms.write("Y:" + str(self.slider1.val))
-        comms.write("Z:" + str(self.slider2.val))
+        comms.writeData("X:" + str(self.slider.val))
+        comms.writeData("Y:" + str(self.slider1.val))
+        comms.writeData("Z:" + str(self.slider2.val))
         self.line, = self.ax0.plot(self.ts,xData)
         self.line.set_color("blue")
         self.line1, = self.ax1.plot(self.ts,yData)
@@ -186,14 +187,75 @@ class GUI():
             self.oz.append(i[2])
             self.ts.append(i[3])
 
+class AltitudeGUI():
+    alt = []
+    ts = []
+    def __init__(self, master):
+        master.columnconfigure(0,weight=1)
+        master.rowconfigure(1,weight=1)
+        self.master = master
+        self.master.title("Attitude Tester")
+        self.master.geometry('800x600')
+        self.master.attributes("-zoomed", False)
+        self.createGraph()
+        self.plotGraph(1)
+        self.master.bind("<Escape>", self.end_fullscreen)
+
+    def end_fullscreen(self, event=None):
+        self.state = False
+        sys.exit()
+
+    def createGraph(self):
+        self.frame = Frame(self.master)
+        self.frame.grid(column=0,row=1,columnspan=4, rowspan=3, sticky=N+W+E+S)
+        self.f = Figure( figsize=(8, 7), dpi=80 )
+        self.ax0 = self.f.add_axes([.05, .625, .4, .35], frameon=False, label='X Orientation')
+        self.ax0.set_xlabel( 'Time (ms)' )
+        self.ax0.set_ylabel( 'Degree' )
+        self.ax0.grid(color='r', linestyle='-', linewidth=2)
+        self.boxAxis = self.f.add_axes([.075, .525, .325, .025])
+        #self.ax0.plot(np.max(np.random.rand(100,10)*10,axis=1),"r-")
+        self.canvas = FigureCanvasTkAgg(self.f, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+        self.box = TextBox(boxAxis, "Altitude", initial="500")
+        self.box.on_submit(self.plotGraph)
+        # self.canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
+        # self.toolbar.grid(column = 0, row = 2, columnspan=2)
+        self.toolbar.update()
+
+    def plotGraph(self, val):
+        data = []
+        for i in range(0,len(self.ts)):
+            data.append(eval(val))
+        comms.writeData("PA:" + val)
+        self.line, = self.ax0.plot(self.ts,data)
+        self.line.set_color("blue")
+        self.addAltitudeData()
+        self.l, = self.ax0.plot(self.ts, self.alt)
+        self.l.set_color("black")
+        self.canvas.draw()
+
+    def addAltitudeData(self):
+        self.alt = []
+        self.ts = []
+        for i in altitudeData:
+            self.alt.append(i[0])
+            self.ts.append(i[1])
+
 def runArduino():
     print("start thread")
     parser = SyntaxParser()
     f = comms.readData()
     while comms.isAvailable():
         if parser.START_LINE in f and parser.END_LINE in f:
+            syntax = parser.getSyntax(f)
             sampleData = parser.parseLine(f)
-            if(sampleData != None):
+            if(syntax is parser.ALTITUDE_SYNTAX and sampleData is not None):
+                altitudeData.append(sampleData)
+                graph.plotGraph(1)
+            else if(syntax is parser.ORIENTATION_SYNTAX and sampleData is not None):
                 orientationData.append(sampleData)
                 graph.plotGraph(1)
             f = comms.readData()
@@ -205,5 +267,5 @@ def main():
     root.mainloop()
 
 comms = ArduinoCommunicator("/dev/ttyACM0")
-graph = GUI(root)
+graph = OrientationGUI(root)
 main()
